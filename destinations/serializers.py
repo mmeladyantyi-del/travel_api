@@ -72,12 +72,16 @@ class DestinationListSerializer(serializers.ModelSerializer):
             'primary_photo': {'help_text': 'Optional destination image upload.'},
         }
 
-    def get_activity_count(self, obj):
+    def get_activity_count(self, obj) -> int:
         """Return the count of active activities at this destination."""
+        if hasattr(obj, 'active_activity_count'):
+            return obj.active_activity_count
         return obj.activities.filter(is_active=True).count()
 
-    def get_accommodation_count(self, obj):
+    def get_accommodation_count(self, obj) -> int:
         """Return the count of active accommodations at this destination."""
+        if hasattr(obj, 'active_accommodation_count'):
+            return obj.active_accommodation_count
         return obj.accommodations.filter(is_active=True).count()
 
 
@@ -99,12 +103,16 @@ class DestinationDetailSerializer(DestinationListSerializer):
             'created_at', 'updated_at',
         )
 
-    def get_review_count(self, obj):
+    def get_review_count(self, obj) -> int:
         """Return the number of submitted destination reviews."""
+        if hasattr(obj, 'review_count'):
+            return obj.review_count
         return obj.reviews.count()
 
-    def get_computed_rating(self, obj):
+    def get_computed_rating(self, obj) -> float | None:
         """Return the mean of submitted reviews when available."""
+        if hasattr(obj, 'computed_rating'):
+            return obj.computed_rating
         return obj.reviews.aggregate(value=Avg('rating'))['value']
 
     def to_representation(self, instance):
@@ -156,3 +164,24 @@ class DestinationWriteSerializer(serializers.ModelSerializer):
             setattr(instance, field, value)
         instance.save()
         return instance
+
+
+class DestinationSearchParamsSerializer(serializers.Serializer):
+    """Document supported destination search parameters."""
+
+    search = serializers.CharField(required=False)
+    name = serializers.CharField(required=False)
+    country = serializers.CharField(required=False)
+    category = serializers.CharField(required=False)
+    climate = serializers.CharField(required=False)
+    min_rating = serializers.DecimalField(max_digits=3, decimal_places=2, required=False)
+    max_rating = serializers.DecimalField(max_digits=3, decimal_places=2, required=False)
+
+
+class DestinationSearchPageSerializer(serializers.Serializer):
+    """Document paginated destination search results."""
+
+    count = serializers.IntegerField()
+    next = serializers.URLField(allow_null=True)
+    previous = serializers.URLField(allow_null=True)
+    results = DestinationListSerializer(many=True)

@@ -1,22 +1,63 @@
-"""
-URL configuration for travel_api project.
+"""Project URL routes for the versioned travel API and its documentation."""
 
-The `urlpatterns` list routes URLs to views. For more information please see:
-    https://docs.djangoproject.com/en/6.1/topics/http/urls/
-Examples:
-Function views
-    1. Add an import:  from my_app import views
-    2. Add a URL to urlpatterns:  path('', views.home, name='home')
-Class-based views
-    1. Add an import:  from other_app.views import Home
-    2. Add a URL to urlpatterns:  path('', Home.as_view(), name='home')
-Including another URLconf
-    1. Import the include() function: from django.urls import include, path
-    2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
-"""
+from django.conf import settings
 from django.contrib import admin
-from django.urls import path
+from django.urls import include, path
+from django.views.static import serve
+from drf_spectacular.views import (
+    SpectacularAPIView,
+    SpectacularRedocView,
+    SpectacularSwaggerView,
+)
+from rest_framework.routers import DefaultRouter
+
+from bookings.views import BookingViewSet
+from destinations.views import DestinationViewSet
+from itineraries.views import ItineraryViewSet, TripAnalyticsViewSet
+
+router = DefaultRouter()
+router.register('itineraries', ItineraryViewSet, basename='itinerary')
+router.register('destinations', DestinationViewSet, basename='destination')
+router.register('bookings', BookingViewSet, basename='booking')
+router.register('analytics', TripAnalyticsViewSet, basename='analytics')
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
+    path('admin/', admin.site.urls, name='admin'),
+    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+    path(
+        'api/docs/', SpectacularSwaggerView.as_view(url_name='schema'),
+        name='swagger-ui',
+    ),
+    path(
+        'api/redoc/', SpectacularRedocView.as_view(url_name='schema'),
+        name='redoc',
+    ),
+    path(
+        'api/v1/', include((router.urls, 'api_v1'), namespace='api_v1'),
+    ),
+    path(
+        'api/v1/accounts/', include(('accounts.urls', 'accounts'), namespace='accounts'),
+    ),
+    path(
+        'api/v1/destinations/',
+        include(('destinations.urls', 'destinations'), namespace='destinations'),
+    ),
+    path(
+        'api/v1/itineraries/',
+        include(('itineraries.urls', 'itineraries'), namespace='itineraries'),
+    ),
+    path(
+        'api/v1/bookings/', include(('bookings.urls', 'bookings'), namespace='bookings'),
+    ),
+    path(
+        'api/v1/reviews/', include(('reviews.urls', 'reviews'), namespace='reviews'),
+    ),
+    path(
+        'api/v1/budgets/', include(('budgets.urls', 'budgets'), namespace='budgets'),
+    ),
 ]
+
+if settings.DEBUG:
+    urlpatterns.append(
+        path('media/<path:path>', serve, {'document_root': settings.MEDIA_ROOT}, name='media'),
+    )

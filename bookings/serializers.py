@@ -25,7 +25,7 @@ class BookingListSerializer(serializers.ModelSerializer):
             'start_date': {'help_text': 'Date the booked service begins.'},
         }
 
-    def get_item_name(self, obj):
+    def get_item_name(self, obj) -> str | None:
         """Return the selected accommodation or activity name."""
         item = obj.accommodation or obj.activity
         return item.name if item else None
@@ -95,4 +95,5 @@ class BookingWriteSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request is None or not request.user.is_authenticated:
             raise serializers.ValidationError('An authenticated booking owner is required.')
-        return Booking.objects.create(user=request.user, **validated_data)
+        user = validated_data.pop('user', request.user)
+        return Booking.objects.create(user=user, **validated_data)
