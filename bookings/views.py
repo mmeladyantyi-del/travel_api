@@ -106,6 +106,7 @@ class BookingViewSet(viewsets.ModelViewSet):
         booking = self.get_object()
         if booking.status not in {Booking.Status.PENDING, Booking.Status.CONFIRMED}:
             raise ValidationError({'status': 'Only pending or confirmed bookings can be cancelled.'})
+        # Persist the state change and audit record together to avoid partial cancellation.
         with transaction.atomic():
             booking.status = Booking.Status.CANCELLED
             booking.save(update_fields=['status', 'updated_at'])

@@ -5,6 +5,7 @@ from rest_framework.permissions import BasePermission, SAFE_METHODS
 
 def _get_itinerary(obj):
     """Resolve an itinerary from the itinerary or one of its related objects."""
+    # Expense permissions reach the itinerary through Expense -> Budget -> Itinerary.
     if hasattr(obj, 'collaborations') and hasattr(obj, 'owner_id'):
         return obj
     itinerary = getattr(obj, 'itinerary', None)

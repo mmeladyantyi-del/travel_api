@@ -55,6 +55,7 @@ class Booking(models.Model):
     def clean(self):
         """Require exactly one bookable item and a valid date range."""
         super().clean()
+        # XOR rejects both missing targets and ambiguous bookings with two targets.
         if bool(self.accommodation_id) == bool(self.activity_id):
             raise ValidationError('Select exactly one accommodation or activity.')
         if self.end_date and self.start_date and self.end_date < self.start_date:

@@ -7,6 +7,7 @@ from rest_framework.views import exception_handler
 def custom_exception_handler(exc, context):
     """Return stable error fields while preserving DRF status and headers."""
     response = exception_handler(exc, context)
+    # Let Django handle non-REST exceptions instead of disguising server errors as API errors.
     if response is None:
         return None
 
@@ -26,6 +27,7 @@ def custom_exception_handler(exc, context):
     else:
         message = str(getattr(exc, 'detail', 'The request could not be completed.'))
 
+    # Mutate only the body; DRF's authentication headers and status must survive wrapping.
     response.data = {
         'error': {
             'status': response.status_code,

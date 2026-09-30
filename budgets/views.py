@@ -35,6 +35,7 @@ class BudgetViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         """Require edit permission on the selected itinerary before saving."""
         itinerary = serializer.validated_data['itinerary']
+        # Create requests have no object yet, so enforce the same role rule explicitly.
         check = CanEditItinerary()
         if not check.has_object_permission(self.request, self, itinerary):
             raise PermissionDenied(check.message)

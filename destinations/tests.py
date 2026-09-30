@@ -1,5 +1,6 @@
 """Destination catalog, filter, serializer, and upload tests."""
 
+from datetime import date
 from io import BytesIO
 from tempfile import TemporaryDirectory
 
@@ -14,6 +15,8 @@ from rest_framework.test import APIClient
 from .filters import DestinationFilter
 from .models import Accommodation, Activity, Destination
 from .serializers import DestinationDetailSerializer, DestinationWriteSerializer
+from itineraries.models import Itinerary
+from reviews.models import Review
 
 User = get_user_model()
 
@@ -102,6 +105,59 @@ class DestinationApiTests(TestCase):
         response = self.client.get(reverse('destinations:search'), {'search': 'cape'})
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['results'][0]['name'], 'Cape Town')
+
+    def test_recommendations_require_authentication(self):
+        response = self.client.get(reverse('destinations:recommendations'))
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+
+    def test_recommendations_rank_by_trip_and_review_preferences(self):
+        user = User.objects.create_user(
+            username='planner', email='planner@example.com', password='Strong-pass-2026!',
+        )
+        familiar = self.destination
+        familiar.category = 'coastal'
+        familiar.climate = 'mediterranean'
+        familiar.save(update_fields=['category', 'climate'])
+        preferred = Destination.objects.create(
+            name='Durban', slug='durban', country='South Africa',
+            category='coastal', climate='subtropical',
+        )
+        unrelated = Destination.objects.create(
+            name='Reykjavik', slug='reykjavik', country='Iceland',
+            category='city', climate='subarctic',
+        )
+        Itinerary.objects.create(
+            owner=user, destination=familiar, title='Coastal break',
+            start_date=date(2026, 11, 1), end_date=date(2026, 11, 3),
+        )
+        Review.objects.create(user=user, destination=familiar, rating=5, title='Loved it')
+        self.client.force_authenticate(user)
+
+        response = self.client.get(reverse('destinations:recommendations'))
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        recommendations = response.data['results']
+        self.assertEqual([item['name'] for item in recommendations], ['Durban', 'Reykjavik'])
+        self.assertGreater(recommendations[0]['recommendation_score'], recommendations[1]['recommendation_score'])
+        self.assertIn('coastal interests', recommendations[0]['recommendation_reason'])
+
+    def test_recommendations_accept_filters_and_validated_limit(self):
+        user = User.objects.create_user(
+            username='traveler', email='traveler@example.com', password='Strong-pass-2026!',
+        )
+        self.client.force_authenticate(user)
+        Destination.objects.create(name='Durban', slug='durban', country='South Africa', category='coastal')
+        Destination.objects.create(name='Reykjavik', slug='reykjavik', country='Iceland', category='city')
+
+        response = self.client.get(
+            reverse('destinations:recommendations'), {'country': 'Iceland', 'limit': 1},
+        )
+        invalid = self.client.get(reverse('destinations:recommendations'), {'limit': 0})
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(response.data['results'][0]['name'], 'Reykjavik')
+        self.assertEqual(invalid.status_code, status.HTTP_400_BAD_REQUEST)
 
     def test_photo_upload_rejects_non_staff_user(self):
         user = User.objects.create_user(

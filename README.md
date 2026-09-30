@@ -2,6 +2,10 @@
 
 A versioned Django REST Framework API for travel destinations, trip itineraries, collaboration, bookings, reviews, budgets, and expenses. OpenAPI is available at `/api/schema/`; interactive Swagger UI is at `/api/docs/` and ReDoc at `/api/redoc/`.
 
+## Technology and structure
+
+Built with Django, Django REST Framework, SimpleJWT, django-filter, drf-spectacular, python-decouple, Pillow, and SQLite by default. The six domain apps are `accounts`, `destinations`, `itineraries`, `bookings`, `reviews`, and `budgets`; `travel_api` contains project settings, routing, pagination, upload validators, and exception handling.
+
 ## Setup
 
 Use Python 3.12 or newer. In PowerShell:
@@ -43,7 +47,7 @@ sequenceDiagram
 | --- | --- |
 | Accounts | `/api/v1/accounts/register/`, `/token/`, `/token/refresh/`, `/profile/`, `/password/change/`, `/password/reset/`, `/password/reset/confirm/` |
 | Itineraries | `/api/v1/itineraries/` (list/create and detail), `/search/`, `/collaborations/<trip_id>/`, `/reports/<trip_id>/`, `/<trip_id>/upload-pdf/` |
-| Destinations | `/api/v1/destinations/`, `/search/`, `/<id>/photo/` |
+| Destinations | `/api/v1/destinations/`, `/search/`, `/recommendations/` (authenticated), `/<id>/photo/` |
 | Bookings | `/api/v1/bookings/`, `/<id>/confirm/`, `/<id>/cancel/`; `/api/v1/bookings/detail/<id>/` |
 | Reviews | `/api/v1/reviews/` |
 | Budgets and expenses | `/api/v1/budgets/`, `/api/v1/expenses/` |
@@ -53,9 +57,19 @@ List endpoints support their documented filters, search, ordering, and paginatio
 
 ## Example
 
-```powershell
-$body = @{ username = 'traveler'; email = 'traveler@example.com'; password = 'StrongPass123!' } | ConvertTo-Json
-Invoke-RestMethod -Method Post -Uri http://127.0.0.1:8000/api/v1/accounts/register/ -ContentType 'application/json' -Body $body
+Register and log in with cURL, then use the access token for protected routes:
+
+```bash
+curl -X POST http://127.0.0.1:8000/api/v1/accounts/register/ \
+  -H 'Content-Type: application/json' \
+  -d '{"username":"traveler","email":"traveler@example.com","password":"StrongPass123!"}'
+
+curl -X POST http://127.0.0.1:8000/api/v1/accounts/token/ \
+  -H 'Content-Type: application/json' \
+  -d '{"identifier":"traveler","password":"StrongPass123!"}'
+
+curl 'http://127.0.0.1:8000/api/v1/destinations/recommendations/?limit=5' \
+  -H 'Authorization: Bearer <access-token>'
 ```
 
 ## Tests

@@ -59,7 +59,10 @@ def _visible_itineraries(user):
 @api_view(['GET', 'POST'])
 @permission_classes([IsAuthenticated])
 def trip_search(request):
-    """Search accessible trips with GET filters or POSTed search criteria."""
+    """Search accessible trips with GET filters or POSTed search criteria.
+
+    Example: POST /api/v1/itineraries/search/ with {"search": "coastal"}.
+    """
     params = request.query_params if request.method == 'GET' else request.data
     if request.method == 'POST' and not isinstance(params, dict):
         raise ValidationError({'detail': 'Search body must be a JSON object.'})
@@ -68,6 +71,7 @@ def trip_search(request):
     ).prefetch_related('daily_plans', 'collaborations').annotate(
         collaborator_count=Count('collaborations', distinct=True),
     ).order_by('-start_date', 'title')
+    # Stable ordering prevents records from jumping between pages when dates tie.
     filterset = ItineraryFilter(data=params, queryset=queryset)
     if not filterset.is_valid():
         raise ValidationError(filterset.errors)
@@ -155,6 +159,7 @@ def bulk_update_bookings(request):
                 new_status = entry.get('status')
                 if new_status not in allowed_statuses:
                     raise ValueError('Invalid booking status.')
+                # A savepoint isolates one bad row while preserving other valid updates.
                 with transaction.atomic():
                     booking = Booking.objects.select_for_update().get(
                         pk=booking_id, user=request.user,

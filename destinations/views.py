@@ -1,12 +1,12 @@
 """Destination search and read-only catalog endpoints."""
 
-from django.db.models import Avg, Count, Prefetch, Q
+from django.db.models import Avg, Case, Count, IntegerField, Prefetch, Q, Value, When
 from django.shortcuts import get_object_or_404
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
-from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
-from rest_framework.permissions import IsAdminUser
+from rest_framework.permissions import AllowAny, IsAdminUser, IsAuthenticated
+from rest_framework.permissions import IsAuthenticatedOrReadOnly
 from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -23,6 +23,9 @@ from .serializers import (
     DestinationSearchPageSerializer,
     DestinationSearchParamsSerializer,
     DestinationPhotoUploadSerializer,
+    DestinationRecommendationPageSerializer,
+    DestinationRecommendationQuerySerializer,
+    DestinationRecommendationSerializer,
 )
 
 
@@ -70,7 +73,10 @@ class DestinationSearchView(APIView):
         responses=DestinationSearchPageSerializer,
     )
     def get(self, request):
-        """Return matching destinations using URL query parameters."""
+        """Return matching destinations using URL query parameters.
+
+        Example: GET /api/v1/destinations/search/?country=South%20Africa
+        """
         return self._search(request, request.query_params)
 
     @extend_schema(
@@ -82,6 +88,113 @@ class DestinationSearchView(APIView):
         if not isinstance(request.data, dict):
             raise ValidationError({'detail': 'Search body must be a JSON object.'})
         return self._search(request, request.data)
+
+
+class DestinationRecommendationView(APIView):
+    """Rank destinations using the authenticated user's travel signals."""
+
+    permission_classes = [IsAuthenticated]
+
+    @extend_schema(
+        parameters=[DestinationRecommendationQuerySerializer],
+        responses=DestinationRecommendationPageSerializer,
+    )
+    def get(self, request):
+        """Recommend unvisited destinations matching trip and review history.
+
+        Example: GET /api/v1/destinations/recommendations/?limit=5
+        """
+        params = DestinationRecommendationQuerySerializer(data=request.query_params)
+        params.is_valid(raise_exception=True)
+        options = params.validated_data
+        user = request.user
+
+        # Treat trips and strong reviews as positive preference signals.
+        positive_destinations = Destination.objects.filter(
+            Q(itineraries__owner=user)
+            | Q(itineraries__collaborations__user=user)
+            | Q(reviews__user=user, reviews__rating__gte=4)
+            | Q(activities__reviews__user=user, activities__reviews__rating__gte=4)
+        ).distinct()
+        preferences = list(positive_destinations.values_list('category', 'country', 'climate'))
+        preferred_categories = {category for category, _, _ in preferences if category}
+        preferred_countries = {country for _, country, _ in preferences if country}
+        preferred_climates = {climate for _, _, climate in preferences if climate}
+
+        # Omit places the user has already planned or reviewed, while retaining them as preference evidence.
+        visited_ids = set(
+            user.itineraries.exclude(destination__isnull=True).values_list('destination_id', flat=True)
+        )
+        visited_ids.update(
+            user.collaborative_itineraries.exclude(destination__isnull=True).values_list('destination_id', flat=True)
+        )
+        visited_ids.update(user.reviews.exclude(destination__isnull=True).values_list('destination_id', flat=True))
+        visited_ids.update(
+            user.reviews.exclude(activity__isnull=True).values_list('activity__destination_id', flat=True)
+        )
+
+        # Explicit filters act as additional positive signals and narrow the candidate pool.
+        for field, preference_set in (
+            ('country', preferred_countries),
+            ('category', preferred_categories),
+            ('climate', preferred_climates),
+        ):
+            selected = options.get(field)
+            if selected:
+                preference_set.add(selected)
+
+        score = Value(0, output_field=IntegerField())
+        for field, values, weight in (
+            ('category', preferred_categories, 3),
+            ('country', preferred_countries, 2),
+            ('climate', preferred_climates, 1),
+        ):
+            if values:
+                score += Case(
+                    When(**{f'{field}__in': values}, then=Value(weight)),
+                    default=Value(0), output_field=IntegerField(),
+                )
+
+        queryset = Destination.objects.annotate(
+            active_activity_count=Count(
+                'activities', filter=Q(activities__is_active=True), distinct=True,
+            ),
+            active_accommodation_count=Count(
+                'accommodations', filter=Q(accommodations__is_active=True), distinct=True,
+            ),
+            review_count=Count('reviews', distinct=True),
+            computed_rating=Avg('reviews__rating', distinct=True),
+            recommendation_score=score,
+        ).exclude(pk__in=visited_ids)
+        for field in ('country', 'category', 'climate'):
+            if options.get(field):
+                queryset = queryset.filter(**{f'{field}__iexact': options[field]})
+
+        # Rank and paginate in SQL so a large destination catalog stays bounded.
+        paginator = StandardResultsSetPagination()
+        paginator.page_size = options['limit']
+        page = paginator.paginate_queryset(
+            queryset.order_by('-recommendation_score', '-computed_rating', 'name'),
+            request,
+            view=self,
+        )
+        for destination in page:
+            matched = []
+            if destination.category in preferred_categories:
+                matched.append(f"{destination.category} interests")
+            if destination.country in preferred_countries:
+                matched.append(f"{destination.country} trips")
+            if destination.climate in preferred_climates:
+                matched.append(f"{destination.climate} climate")
+            destination.recommendation_reason = ', '.join(matched) or (
+                'Highly rated by travelers' if destination.computed_rating and destination.computed_rating >= 4
+                else 'Popular destination'
+            )
+
+        serializer = DestinationRecommendationSerializer(
+            page, many=True, context={'request': request},
+        )
+        return paginator.get_paginated_response(serializer.data)
 
 
 class DestinationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -105,6 +218,7 @@ class DestinationViewSet(viewsets.ReadOnlyModelViewSet):
             'nightly_rate', 'currency', 'photo', 'is_active', 'created_at',
             'updated_at',
         )
+        # Counts are annotated once, while only the nested active records are prefetched.
         return Destination.objects.annotate(
             active_activity_count=Count(
                 'activities', filter=Q(activities__is_active=True), distinct=True,

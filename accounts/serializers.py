@@ -91,6 +91,7 @@ class LoginSerializer(serializers.Serializer):
     def validate(self, attrs):
         """Verify credentials and return signed access and refresh tokens."""
         identifier = attrs['identifier'].strip()
+        # Resolve email logins to usernames so Django's configured backend remains authoritative.
         user = User.objects.filter(username__iexact=identifier).first()
         if user is None:
             user = User.objects.filter(email__iexact=identifier).first()

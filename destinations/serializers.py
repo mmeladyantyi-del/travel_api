@@ -75,6 +75,7 @@ class DestinationListSerializer(serializers.ModelSerializer):
 
     def get_activity_count(self, obj) -> int:
         """Return the count of active activities at this destination."""
+        # Search and list views annotate counts to avoid one query per result card.
         if hasattr(obj, 'active_activity_count'):
             return obj.active_activity_count
         return obj.activities.filter(is_active=True).count()
@@ -186,6 +187,36 @@ class DestinationSearchPageSerializer(serializers.Serializer):
     next = serializers.URLField(allow_null=True)
     previous = serializers.URLField(allow_null=True)
     results = DestinationListSerializer(many=True)
+
+
+class DestinationRecommendationQuerySerializer(serializers.Serializer):
+    """Validate optional filters and result limits for recommendations."""
+
+    country = serializers.CharField(required=False, max_length=100)
+    category = serializers.CharField(required=False, max_length=60)
+    climate = serializers.CharField(required=False, max_length=60)
+    limit = serializers.IntegerField(required=False, min_value=1, max_value=50, default=20)
+
+
+class DestinationRecommendationSerializer(DestinationListSerializer):
+    """Destination card with an affinity score and explanation."""
+
+    recommendation_score = serializers.IntegerField(read_only=True)
+    recommendation_reason = serializers.CharField(read_only=True)
+
+    class Meta(DestinationListSerializer.Meta):
+        fields = DestinationListSerializer.Meta.fields + (
+            'recommendation_score', 'recommendation_reason',
+        )
+
+
+class DestinationRecommendationPageSerializer(serializers.Serializer):
+    """Document the paginated personalized destination response."""
+
+    count = serializers.IntegerField()
+    next = serializers.URLField(allow_null=True)
+    previous = serializers.URLField(allow_null=True)
+    results = DestinationRecommendationSerializer(many=True)
 
 
 class DestinationPhotoUploadSerializer(serializers.ModelSerializer):

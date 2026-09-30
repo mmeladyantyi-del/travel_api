@@ -17,6 +17,7 @@ def validate_pdf_upload(upload):
         raise serializers.ValidationError('PDF must be 10 MB or smaller.')
     if Path(upload.name).suffix.lower() != '.pdf':
         raise serializers.ValidationError('Only .pdf files are accepted.')
+    # MIME headers can be forged, so also require the file's PDF signature.
     upload.seek(0)
     header = upload.read(1024)
     upload.seek(0)
@@ -39,6 +40,7 @@ def validate_image_upload(upload):
         raise serializers.ValidationError('Unsupported image content type.')
     upload.seek(0)
     try:
+        # Pillow decodes the image header and checks for truncated or malformed content.
         with Image.open(upload) as image:
             if image.format not in ALLOWED_IMAGE_FORMATS:
                 raise serializers.ValidationError('Only JPEG, PNG, and WebP images are accepted.')
