@@ -1,10 +1,13 @@
 """Destination search and read-only catalog endpoints."""
 
 from django.db.models import Avg, Count, Prefetch, Q
+from django.shortcuts import get_object_or_404
 from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticatedOrReadOnly
+from rest_framework.permissions import IsAdminUser
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from django_filters.rest_framework import DjangoFilterBackend
@@ -19,6 +22,7 @@ from .serializers import (
     DestinationListSerializer,
     DestinationSearchPageSerializer,
     DestinationSearchParamsSerializer,
+    DestinationPhotoUploadSerializer,
 )
 
 
@@ -137,3 +141,21 @@ class DestinationViewSet(viewsets.ReadOnlyModelViewSet):
         page = self.paginate_queryset(activities)
         serializer = ActivitySerializer(page if page is not None else activities, many=True, context=self.get_serializer_context())
         return self.get_paginated_response(serializer.data) if page is not None else Response(serializer.data)
+
+
+class DestinationPhotoUploadView(APIView):
+    """Upload a validated catalog photo for a destination."""
+
+    permission_classes = [IsAdminUser]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @extend_schema(request=DestinationPhotoUploadSerializer, responses=DestinationPhotoUploadSerializer)
+    def post(self, request, pk):
+        """Validate and save a primary destination image."""
+        destination = get_object_or_404(Destination, pk=pk)
+        serializer = DestinationPhotoUploadSerializer(
+            destination, data=request.data, partial=True, context={'request': request},
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_200_OK)

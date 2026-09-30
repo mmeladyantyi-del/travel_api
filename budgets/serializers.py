@@ -1,5 +1,7 @@
 """Serializers for trip budgets and categorized expenses."""
 
+from decimal import Decimal
+
 from rest_framework import serializers
 
 from .models import Budget, Expense
@@ -53,11 +55,11 @@ class BudgetSerializer(serializers.ModelSerializer):
             'currency': {'help_text': 'Three-letter currency code for all amounts.'},
         }
 
-    def get_spent_amount(self, obj):
+    def get_spent_amount(self, obj) -> Decimal:
         """Return the total of all recorded expenses."""
         return obj.spent_amount
 
-    def get_remaining_amount(self, obj):
+    def get_remaining_amount(self, obj) -> Decimal:
         """Return the budget left after expenses."""
         return obj.remaining_amount
 
@@ -66,3 +68,4 @@ class BudgetSerializer(serializers.ModelSerializer):
         if value < 0:
             raise serializers.ValidationError('Budget cannot be negative.')
         return value
+

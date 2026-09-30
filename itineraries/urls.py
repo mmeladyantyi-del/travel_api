@@ -5,6 +5,7 @@ from django.urls import path
 from .views import (
     ItineraryDetailView,
     ItineraryListCreateView,
+    ItineraryPDFUploadView,
     TripCollaborationView,
     generate_trip_report,
     trip_search,
@@ -20,5 +21,9 @@ urlpatterns = [
     path(
         'collaborations/<int:trip_id>/', TripCollaborationView.as_view(),
         name='collaboration',
+    ),
+    path(
+        '<int:trip_id>/upload-pdf/', ItineraryPDFUploadView.as_view(),
+        name='upload-pdf',
     ),
 ]

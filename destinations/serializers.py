@@ -3,6 +3,7 @@
 from django.db.models import Avg
 from rest_framework import serializers
 
+from travel_api.upload_validators import validate_image_upload
 from .models import Accommodation, Activity, Destination
 
 
@@ -185,3 +186,15 @@ class DestinationSearchPageSerializer(serializers.Serializer):
     next = serializers.URLField(allow_null=True)
     previous = serializers.URLField(allow_null=True)
     results = DestinationListSerializer(many=True)
+
+
+class DestinationPhotoUploadSerializer(serializers.ModelSerializer):
+    """Validate a destination photo upload and update its primary image."""
+
+    class Meta:
+        model = Destination
+        fields = ('primary_photo',)
+
+    def validate_primary_photo(self, value):
+        """Check size, safe extension, MIME type, and decoded image format."""
+        return validate_image_upload(value)

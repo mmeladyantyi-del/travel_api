@@ -14,6 +14,7 @@ from rest_framework import filters, generics, status, viewsets
 from rest_framework.decorators import action, api_view, permission_classes
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.parsers import FormParser, MultiPartParser
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -34,6 +35,7 @@ from .serializers import (
     ItinerarySearchPageSerializer,
     ItinerarySearchParamsSerializer,
     ItineraryWriteSerializer,
+    ItineraryPDFUploadSerializer,
     TripAnalyticsSummarySerializer,
     TripBudgetSummarySerializer,
     TripReportSerializer,
@@ -65,7 +67,7 @@ def trip_search(request):
         'owner', 'destination',
     ).prefetch_related('daily_plans', 'collaborations').annotate(
         collaborator_count=Count('collaborations', distinct=True),
-    )
+    ).order_by('-start_date', 'title')
     filterset = ItineraryFilter(data=params, queryset=queryset)
     if not filterset.is_valid():
         raise ValidationError(filterset.errors)
@@ -280,6 +282,31 @@ class TripCollaborationView(APIView):
         )
         collaboration.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class ItineraryPDFUploadView(APIView):
+    """Upload a validated PDF for an itinerary the user can edit."""
+
+    permission_classes = [IsAuthenticated, IsTripOwnerOrCollaborator, CanEditItinerary]
+    parser_classes = [MultiPartParser, FormParser]
+
+    @extend_schema(request=ItineraryPDFUploadSerializer, responses=ItineraryPDFUploadSerializer)
+    def post(self, request, trip_id):
+        """Validate and save the itinerary PDF document."""
+        itinerary = get_object_or_404(
+            Itinerary.objects.select_related('owner'), pk=trip_id,
+        )
+        self.check_object_permissions(request, itinerary)
+        serializer = ItineraryPDFUploadSerializer(
+            itinerary, data=request.data, partial=True, context={'request': request},
+        )
+        serializer.is_valid(raise_exception=True)
+        itinerary = serializer.save()
+        ActivityLog.objects.create(
+            itinerary=itinerary, actor=request.user, action=ActivityLog.Action.UPDATED,
+            details={'uploaded_file': 'itinerary_pdf'},
+        )
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
 
 class ItineraryViewSet(viewsets.ModelViewSet):

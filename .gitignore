@@ -15,9 +15,7 @@ db.sqlite3
 staticfiles/
 media/
 
-# Generated migrations are intentionally kept out of the initial submission.
-*/migrations/*.py
-!*/migrations/__init__.py
+# Migration files are part of the source project and should be versioned.
 
 # Test and tooling output
 .pytest_cache/

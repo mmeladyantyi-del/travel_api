@@ -7,6 +7,7 @@ from accounts.serializers import UserSummarySerializer
 from bookings.models import Booking
 from destinations.models import Activity
 from destinations.serializers import ActivitySerializer
+from travel_api.upload_validators import validate_pdf_upload
 from .models import ActivityLog, Collaboration, DailyPlan, Itinerary
 
 User = get_user_model()
@@ -198,6 +199,18 @@ class ItineraryWriteSerializer(serializers.ModelSerializer):
             setattr(instance, field, value)
         instance.save()
         return instance
+
+
+class ItineraryPDFUploadSerializer(serializers.ModelSerializer):
+    """Validate an itinerary PDF upload and update its document field."""
+
+    class Meta:
+        model = Itinerary
+        fields = ('itinerary_pdf',)
+
+    def validate_itinerary_pdf(self, value):
+        """Check file size, filename extension, MIME type, and PDF signature."""
+        return validate_pdf_upload(value)
 
 
 class ActivityLogSerializer(serializers.ModelSerializer):

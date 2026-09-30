@@ -7,7 +7,11 @@ def _get_itinerary(obj):
     """Resolve an itinerary from the itinerary or one of its related objects."""
     if hasattr(obj, 'collaborations') and hasattr(obj, 'owner_id'):
         return obj
-    return getattr(obj, 'itinerary', None)
+    itinerary = getattr(obj, 'itinerary', None)
+    if itinerary is not None:
+        return itinerary
+    budget = getattr(obj, 'budget', None)
+    return _get_itinerary(budget) if budget is not None else None
 
 
 class IsTripOwner(BasePermission):

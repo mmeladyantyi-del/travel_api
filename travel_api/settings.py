@@ -152,6 +152,7 @@ REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': 'travel_api.pagination.StandardResultsSetPagination',
     'PAGE_SIZE': 20,
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'EXCEPTION_HANDLER': 'travel_api.exceptions.custom_exception_handler',
 }
 
 SIMPLE_JWT = {
@@ -165,6 +166,16 @@ SPECTACULAR_SETTINGS = {
     'DESCRIPTION': 'Versioned API for planning trips and managing travel bookings.',
     'VERSION': '1.0.0',
     'SERVE_INCLUDE_SCHEMA': False,
+    'ENUM_NAME_OVERRIDES': {
+        'BookingStatusEnum': [
+            ('pending', 'Pending'), ('confirmed', 'Confirmed'),
+            ('cancelled', 'Cancelled'), ('completed', 'Completed'),
+        ],
+        'ItineraryStatusEnum': [
+            ('planning', 'Planning'), ('booked', 'Booked'),
+            ('completed', 'Completed'),
+        ],
+    },
 }
 
 

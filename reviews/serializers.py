@@ -25,7 +25,7 @@ class ReviewSerializer(serializers.ModelSerializer):
             'activity': {'help_text': 'Set when reviewing an activity.'},
         }
 
-    def get_target_name(self, obj):
+    def get_target_name(self, obj) -> str | None:
         """Return the name of the reviewed destination or activity."""
         target = obj.destination or obj.activity
         return target.name if target else None
@@ -49,4 +49,5 @@ class ReviewSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         if request is None or not request.user.is_authenticated:
             raise serializers.ValidationError('An authenticated reviewer is required.')
-        return Review.objects.create(user=request.user, **validated_data)
+        user = validated_data.pop('user', request.user)
+        return Review.objects.create(user=user, **validated_data)

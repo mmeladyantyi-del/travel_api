@@ -12,14 +12,19 @@ from drf_spectacular.views import (
 from rest_framework.routers import DefaultRouter
 
 from bookings.views import BookingViewSet
+from budgets.views import BudgetViewSet, ExpenseViewSet
 from destinations.views import DestinationViewSet
 from itineraries.views import ItineraryViewSet, TripAnalyticsViewSet
+from reviews.views import ReviewViewSet
 
 router = DefaultRouter()
 router.register('itineraries', ItineraryViewSet, basename='itinerary')
 router.register('destinations', DestinationViewSet, basename='destination')
 router.register('bookings', BookingViewSet, basename='booking')
 router.register('analytics', TripAnalyticsViewSet, basename='analytics')
+router.register('reviews', ReviewViewSet, basename='review')
+router.register('budgets', BudgetViewSet, basename='budget')
+router.register('expenses', ExpenseViewSet, basename='expense')
 
 urlpatterns = [
     path('admin/', admin.site.urls, name='admin'),
@@ -32,12 +37,7 @@ urlpatterns = [
         'api/redoc/', SpectacularRedocView.as_view(url_name='schema'),
         name='redoc',
     ),
-    path(
-        'api/v1/', include((router.urls, 'api_v1'), namespace='api_v1'),
-    ),
-    path(
-        'api/v1/accounts/', include(('accounts.urls', 'accounts'), namespace='accounts'),
-    ),
+    # Put explicit resource subroutes before the router's broader prefixes.
     path(
         'api/v1/destinations/',
         include(('destinations.urls', 'destinations'), namespace='destinations'),
@@ -45,6 +45,12 @@ urlpatterns = [
     path(
         'api/v1/itineraries/',
         include(('itineraries.urls', 'itineraries'), namespace='itineraries'),
+    ),
+    path(
+        'api/v1/', include((router.urls, 'api_v1'), namespace='api_v1'),
+    ),
+    path(
+        'api/v1/accounts/', include(('accounts.urls', 'accounts'), namespace='accounts'),
     ),
     path(
         'api/v1/bookings/', include(('bookings.urls', 'bookings'), namespace='bookings'),
