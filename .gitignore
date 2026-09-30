@@ -1,0 +1,25 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# Django local data and collected assets
+db.sqlite3
+staticfiles/
+media/
+
+# Generated migrations are intentionally kept out of the initial submission.
+*/migrations/*.py
+!*/migrations/__init__.py
+
+# Test and tooling output
+.pytest_cache/
+.coverage
+htmlcov/
